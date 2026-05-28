@@ -1,0 +1,1357 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Órdenes de Trabajo — Microsoft 365</title>
+
+<!-- Microsoft Teams SDK -->
+<script src="https://res.cdn.office.net/teams-js/2.22.0/js/MicrosoftTeams.min.js"></script>
+<!-- Microsoft Authentication Library -->
+<script src="https://alcdn.msauth.net/browser/2.38.0/js/msal-browser.min.js"></script>
+<!-- Microsoft Graph Toolkit -->
+<script src="https://unpkg.com/@microsoft/mgt@2/dist/bundle/mgt-loader.js"></script>
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Segoe+UI:wght@300;400;600;700&display=swap');
+
+/* ── Reset & base ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --brand:       #1a3a6b;
+  --brand-light: #e8eef7;
+  --brand-mid:   #c5d3e8;
+  --accent:      #0078d4;   /* Microsoft blue */
+  --accent2:     #107C10;   /* aprobado */
+  --warn:        #d83b01;   /* rechazado */
+  --pending:     #797775;
+  --surface:     #ffffff;
+  --bg:          #f3f2f1;   /* Teams light bg */
+  --border:      #edebe9;
+  --text:        #201f1e;
+  --text2:       #605e5c;
+  --text3:       #a19f9d;
+  --radius:      6px;
+  --shadow:      0 2px 8px rgba(0,0,0,.10);
+}
+
+body {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  min-height: 100vh;
+}
+
+/* ── Header ── */
+.app-header {
+  background: var(--brand);
+  color: #fff;
+  padding: 12px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: var(--shadow);
+}
+.app-header h1 { font-size: 16px; font-weight: 600; letter-spacing: .3px; }
+.header-right { display: flex; align-items: center; gap: 12px; }
+.user-chip {
+  display: flex; align-items: center; gap: 8px;
+  background: rgba(255,255,255,.15);
+  border-radius: 20px; padding: 4px 12px;
+  font-size: 12px;
+}
+.user-avatar {
+  width: 26px; height: 26px; border-radius: 50%;
+  background: var(--accent); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700;
+}
+
+/* ── Nav tabs ── */
+.nav-tabs {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  padding: 0 24px;
+  overflow-x: auto;
+}
+.nav-tab {
+  padding: 11px 18px;
+  border: none; background: none;
+  font-size: 13px; font-weight: 600;
+  color: var(--text2);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  font-family: inherit;
+  transition: color .15s, border-color .15s;
+}
+.nav-tab:hover { color: var(--accent); }
+.nav-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* ── Container ── */
+.container { max-width: 1020px; margin: 0 auto; padding: 20px 16px; }
+
+/* ── Panels ── */
+.panel { display: none; }
+.panel.active { display: block; }
+
+/* ── Card ── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+.card-head {
+  background: var(--brand);
+  color: #fff;
+  padding: 9px 18px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.card-body { padding: 18px; }
+
+/* ── Grid layouts ── */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+.grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 14px; }
+@media(max-width:720px) {
+  .grid-2,.grid-3,.grid-4 { grid-template-columns: 1fr; }
+}
+
+/* ── Form fields ── */
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field label {
+  font-size: 11px; font-weight: 700;
+  color: var(--text2);
+  text-transform: uppercase; letter-spacing: .6px;
+}
+.field input,
+.field textarea,
+.field select {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 7px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--text);
+  background: var(--surface);
+  width: 100%;
+  transition: border-color .15s, box-shadow .15s;
+}
+.field input:focus,
+.field textarea:focus,
+.field select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(0,120,212,.12);
+}
+.field textarea { resize: vertical; min-height: 76px; }
+.field .help { font-size: 11px; color: var(--text3); margin-top: 2px; }
+
+/* ── Signature field ── */
+.sig-pad {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #faf9f8;
+  cursor: crosshair;
+  touch-action: none;
+  display: block;
+  width: 100%; height: 100px;
+}
+.sig-clear {
+  font-size: 11px; color: var(--text3);
+  background: none; border: none;
+  cursor: pointer; padding: 2px 0;
+  text-decoration: underline;
+  font-family: inherit;
+}
+
+/* ── Dynamic tables ── */
+.dyn-table { width: 100%; border-collapse: collapse; }
+.dyn-table th {
+  background: var(--brand-light);
+  color: var(--brand);
+  font-size: 11px; font-weight: 700;
+  text-transform: uppercase;
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 2px solid var(--brand-mid);
+  letter-spacing: .4px;
+}
+.dyn-table td { padding: 5px 4px; border-bottom: 1px solid var(--border); }
+.dyn-table input,
+.dyn-table select {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 5px 7px;
+  width: 100%; font-size: 12px;
+  font-family: inherit;
+  background: var(--surface);
+  color: var(--text);
+}
+.dyn-table input:focus,
+.dyn-table select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.btn-add-row {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: var(--brand-light);
+  border: 1px dashed var(--brand-mid);
+  color: var(--brand);
+  padding: 6px 12px;
+  border-radius: var(--radius);
+  font-size: 12px; font-weight: 600;
+  cursor: pointer; margin-top: 10px;
+  font-family: inherit;
+}
+.btn-del-row {
+  background: #fde8e8; border: none;
+  color: #a80000; border-radius: 4px;
+  padding: 4px 8px; cursor: pointer;
+  font-weight: 700; font-size: 13px;
+}
+
+/* ── Buttons ── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: 6px; padding: 9px 22px;
+  border-radius: var(--radius);
+  font-size: 14px; font-weight: 600;
+  cursor: pointer; font-family: inherit;
+  transition: opacity .15s, transform .1s;
+  border: none;
+}
+.btn:active { transform: scale(.98); }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+.btn-success { background: var(--accent2); color: #fff; }
+.btn-danger  { background: var(--warn);   color: #fff; }
+.btn-ghost   { background: var(--brand-light); color: var(--brand); border: 1px solid var(--brand-mid); }
+.btn-block   { width: 100%; margin-top: 8px; }
+
+/* ── Status badges ── */
+.badge {
+  display: inline-block;
+  padding: 3px 10px; border-radius: 20px;
+  font-size: 11px; font-weight: 700;
+  letter-spacing: .3px;
+}
+.badge-draft    { background: #f3f2f1; color: var(--pending); }
+.badge-pending  { background: #fff4ce; color: #7a4f00; }
+.badge-approved { background: #dff6dd; color: #1a6b1a; }
+.badge-rejected { background: #fde8e8; color: #a80000; }
+.badge-closed   { background: var(--brand-light); color: var(--brand); }
+
+/* ── Status timeline ── */
+.timeline { display: flex; align-items: center; gap: 0; margin: 14px 0 4px; }
+.tl-step {
+  flex: 1; text-align: center;
+  font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .5px;
+  position: relative;
+}
+.tl-dot {
+  width: 22px; height: 22px; border-radius: 50%;
+  margin: 0 auto 4px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700;
+  border: 2px solid var(--border);
+  background: var(--surface);
+  color: var(--text3);
+  position: relative; z-index: 1;
+}
+.tl-step.done .tl-dot  { background: var(--accent2); border-color: var(--accent2); color: #fff; }
+.tl-step.active .tl-dot{ background: var(--accent);  border-color: var(--accent);  color: #fff; }
+.tl-step.reject .tl-dot{ background: var(--warn);    border-color: var(--warn);    color: #fff; }
+.tl-line {
+  height: 2px; flex: 1;
+  background: var(--border);
+  margin-top: -18px;
+  position: relative; z-index: 0;
+}
+.tl-line.done { background: var(--accent2); }
+
+/* ── Order list cards ── */
+.order-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--brand);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  transition: box-shadow .15s, border-left-color .15s;
+  display: grid; grid-template-columns: 1fr auto;
+  gap: 8px; align-items: start;
+}
+.order-item:hover { box-shadow: var(--shadow); border-left-color: var(--accent); }
+.order-num { font-family: 'Courier New', monospace; font-size: 15px; font-weight: 700; color: var(--brand); }
+.order-desc { font-size: 13px; color: var(--text2); margin-top: 3px; }
+.order-meta { font-size: 11px; color: var(--text3); margin-top: 5px; }
+
+/* ── Dashboard KPIs ── */
+.kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+@media(max-width:720px) { .kpi-grid { grid-template-columns: 1fr 1fr; } }
+.kpi-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  border-top: 3px solid var(--brand);
+}
+.kpi-val { font-size: 26px; font-weight: 700; color: var(--brand); line-height: 1; }
+.kpi-label { font-size: 11px; color: var(--text2); margin-top: 4px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
+.kpi-sub { font-size: 11px; color: var(--text3); margin-top: 2px; }
+
+/* ── Approval panel ── */
+.approval-box {
+  background: #fff9f0;
+  border: 1px solid #f3d9a0;
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  margin-bottom: 14px;
+}
+.approval-box.rejected { background: #fff0f0; border-color: #f3a0a0; }
+.approval-box h4 { font-size: 13px; font-weight: 700; margin-bottom: 8px; }
+
+/* ── Alerts ── */
+.alert {
+  display: none; padding: 12px 16px; border-radius: var(--radius);
+  font-weight: 600; font-size: 13px; margin-top: 14px;
+}
+.alert.show { display: block; }
+.alert-ok  { background: #dff6dd; color: #1a6b1a; border: 1px solid #92d89e; }
+.alert-err { background: #fde8e8; color: #a80000; border: 1px solid #f3a0a0; }
+.alert-info{ background: #e6f3fb; color: #004e8c; border: 1px solid #92c8e8; }
+
+/* ── Loading spinner ── */
+.spinner {
+  display: none; width: 32px; height: 32px;
+  border: 3px solid var(--border); border-top-color: var(--accent);
+  border-radius: 50%; animation: spin .7s linear infinite;
+  margin: 20px auto;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner.show { display: block; }
+
+/* ── Detail view ── */
+.detail-header {
+  background: var(--brand); color: #fff;
+  border-radius: var(--radius) var(--radius) 0 0;
+  padding: 18px 22px;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.detail-num { font-family: 'Courier New', monospace; font-size: 22px; font-weight: 700; }
+.detail-section { border-bottom: 1px solid var(--border); }
+.detail-section-title {
+  background: var(--brand-light); color: var(--brand);
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 1px; padding: 7px 18px;
+  border-left: 3px solid var(--brand);
+}
+.detail-grid { display: grid; grid-template-columns: 1fr 1fr; }
+.detail-field { padding: 10px 18px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.detail-field:nth-child(even) { border-right: none; }
+.detail-field-label { font-size: 10px; font-weight: 700; color: var(--text3); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 3px; }
+.detail-field-val { font-size: 13px; color: var(--text); font-weight: 500; }
+.detail-field-full { grid-column: 1 / -1; padding: 10px 18px; border-bottom: 1px solid var(--border); }
+
+/* ── Signature display ── */
+.sig-img-wrap {
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 6px; background: #faf9f8;
+  min-height: 60px; display: flex; align-items: center; justify-content: center;
+}
+.sig-img-wrap img { max-height: 60px; max-width: 100%; object-fit: contain; }
+.sig-empty { font-size: 12px; color: var(--text3); font-style: italic; }
+
+/* ── Empty state ── */
+.empty-state {
+  text-align: center; padding: 48px 24px;
+  color: var(--text3); font-size: 14px;
+}
+.empty-state svg { width: 48px; height: 48px; margin: 0 auto 12px; opacity: .3; }
+
+/* ── Filter bar ── */
+.filter-bar {
+  display: flex; gap: 10px; align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.filter-bar input,
+.filter-bar select {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px 10px; font-size: 12px;
+  font-family: inherit; color: var(--text);
+  background: var(--surface);
+}
+.filter-bar input { flex: 1; min-width: 140px; }
+
+/* Print */
+@media print {
+  .app-header, .nav-tabs, .action-bar,
+  #panel-nueva, #panel-lista, #panel-dashboard { display: none !important; }
+  #panel-detalle { display: block !important; }
+  body { background: white; }
+  .card { box-shadow: none; border: 1px solid #ddd; }
+}
+</style>
+</head>
+<body>
+
+<!-- ════════════ HEADER ════════════ -->
+<header class="app-header">
+  <h1>⚙ Órdenes de Trabajo</h1>
+  <div class="header-right">
+    <div class="user-chip">
+      <div class="user-avatar" id="userInitials">??</div>
+      <span id="userName">Cargando...</span>
+    </div>
+  </div>
+</header>
+
+<!-- ════════════ NAV ════════════ -->
+<nav class="nav-tabs">
+  <button class="nav-tab active" onclick="showPanel('nueva')">+ Nueva Orden</button>
+  <button class="nav-tab" onclick="showPanel('lista')">📋 Mis Órdenes</button>
+  <button class="nav-tab" onclick="showPanel('aprobaciones')">✅ Aprobaciones</button>
+  <button class="nav-tab" onclick="showPanel('dashboard')">📊 Dashboard</button>
+</nav>
+
+<div class="container">
+
+  <!-- ════════════ PANEL: NUEVA ORDEN ════════════ -->
+  <div id="panel-nueva" class="panel active">
+
+    <!-- Identificación -->
+    <div class="card">
+      <div class="card-head">Identificación de la Orden</div>
+      <div class="card-body">
+        <div class="grid-2" style="margin-bottom:14px">
+          <div class="field">
+            <label>Descripción *</label>
+            <input type="text" id="f_descripcion" placeholder="Descripción general del trabajo">
+          </div>
+          <div class="field">
+            <label>Equipo / Activo *</label>
+            <input type="text" id="f_equipo" placeholder="Nombre o código del equipo">
+          </div>
+          <div class="field">
+            <label>Tipo de mantenimiento</label>
+            <select id="f_tipo">
+              <option value="">Seleccionar...</option>
+              <option value="Preventivo">Preventivo</option>
+              <option value="Correctivo">Correctivo</option>
+              <option value="Predictivo">Predictivo</option>
+              <option value="Mejora">Mejora</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Prioridad</label>
+            <select id="f_prioridad">
+              <option value="Normal">Normal</option>
+              <option value="Alta">Alta</option>
+              <option value="Urgente">Urgente</option>
+              <option value="Baja">Baja</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Solicitada por</label>
+            <input type="text" id="f_solicitadaPor" placeholder="Nombre del solicitante">
+          </div>
+          <div class="field">
+            <label>Autorizada por</label>
+            <input type="text" id="f_autorizadaPor" placeholder="Nombre del autorizador">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Responsables y Fechas -->
+    <div class="card">
+      <div class="card-head">Responsables y Fechas</div>
+      <div class="card-body">
+        <div class="grid-4">
+          <div class="field">
+            <label>Responsable ejecución</label>
+            <input type="text" id="f_responsable" placeholder="Nombre">
+          </div>
+          <div class="field">
+            <label>Fecha inicio</label>
+            <input type="date" id="f_fechaInicio">
+          </div>
+          <div class="field">
+            <label>Supervisor</label>
+            <input type="text" id="f_supervisor" placeholder="Nombre">
+          </div>
+          <div class="field">
+            <label>Fecha fin estimada</label>
+            <input type="date" id="f_fechaFin">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tareas -->
+    <div class="card">
+      <div class="card-head">Tareas a Ejecutar</div>
+      <div class="card-body">
+        <table class="dyn-table">
+          <thead><tr>
+            <th style="width:46%">Descripción de la tarea</th>
+            <th style="width:14%">T. Estimado</th>
+            <th style="width:14%">T. Real</th>
+            <th style="width:10%">OK</th>
+            <th style="width:16%">Responsable</th>
+            <th style="width:5%"></th>
+          </tr></thead>
+          <tbody id="tbody_tareas"></tbody>
+        </table>
+        <button class="btn-add-row" onclick="addRow('tbody_tareas','tarea')">+ Agregar tarea</button>
+      </div>
+    </div>
+
+    <!-- Repuestos -->
+    <div class="card">
+      <div class="card-head">Repuestos Requeridos</div>
+      <div class="card-body">
+        <table class="dyn-table">
+          <thead><tr>
+            <th style="width:15%">Código</th>
+            <th style="width:38%">Nombre repuesto</th>
+            <th style="width:14%">Cantidad</th>
+            <th style="width:14%">Unidades</th>
+            <th style="width:14%">Costo unit.</th>
+            <th style="width:5%"></th>
+          </tr></thead>
+          <tbody id="tbody_repuestos"></tbody>
+        </table>
+        <button class="btn-add-row" onclick="addRow('tbody_repuestos','repuesto')">+ Agregar repuesto</button>
+      </div>
+    </div>
+
+    <!-- Insumos -->
+    <div class="card">
+      <div class="card-head">Insumos Requeridos</div>
+      <div class="card-body">
+        <table class="dyn-table">
+          <thead><tr>
+            <th style="width:15%">Código</th>
+            <th style="width:38%">Nombre insumo</th>
+            <th style="width:14%">Cantidad</th>
+            <th style="width:14%">Unidades</th>
+            <th style="width:14%">Costo unit.</th>
+            <th style="width:5%"></th>
+          </tr></thead>
+          <tbody id="tbody_insumos"></tbody>
+        </table>
+        <button class="btn-add-row" onclick="addRow('tbody_insumos','insumo')">+ Agregar insumo</button>
+      </div>
+    </div>
+
+    <!-- Seguridad -->
+    <div class="card">
+      <div class="card-head">Seguridad y Observaciones</div>
+      <div class="card-body">
+        <div class="grid-2">
+          <div class="field">
+            <label>Medidas de seguridad (LOTO, EPP, etc.)</label>
+            <textarea id="f_seguridad" placeholder="Ej: Bloqueo y etiquetado LOTO&#10;Uso de casco y guantes&#10;Permiso de trabajo en altura"></textarea>
+          </div>
+          <div class="field">
+            <label>Observaciones</label>
+            <textarea id="f_observaciones" placeholder="Observaciones adicionales..."></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Firma del solicitante -->
+    <div class="card">
+      <div class="card-head">Firma del Solicitante</div>
+      <div class="card-body">
+        <div class="grid-2">
+          <div>
+            <label class="field" style="gap:6px">
+              <span style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.6px">Firme aquí</span>
+            </label>
+            <canvas id="sigCanvas" class="sig-pad" width="400" height="100"></canvas>
+            <button class="sig-clear" onclick="clearSig()">Borrar firma</button>
+          </div>
+          <div class="field" style="justify-content:flex-end">
+            <p style="font-size:12px;color:var(--text2);margin-bottom:8px">
+              Al firmar, declara que la información es correcta y autoriza el inicio del trabajo según los procedimientos de seguridad indicados.
+            </p>
+            <div id="sigPreview" style="display:none;margin-top:8px">
+              <div class="sig-img-wrap"><img id="sigImg" src="" alt="Firma capturada"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <button class="btn btn-primary btn-block" id="btnGuardar" onclick="guardarOrden()">
+      💾 Guardar y enviar para aprobación
+    </button>
+    <div class="alert" id="alertGuardar"></div>
+    <br>
+  </div>
+
+  <!-- ════════════ PANEL: LISTA ════════════ -->
+  <div id="panel-lista" class="panel">
+    <!-- Filtros -->
+    <div class="filter-bar">
+      <input type="text" id="filtroTexto" placeholder="Buscar por número, equipo, descripción..." oninput="filtrarOrdenes()">
+      <select id="filtroEstado" onchange="filtrarOrdenes()">
+        <option value="">Todos los estados</option>
+        <option value="Borrador">Borrador</option>
+        <option value="Pendiente aprobación">Pendiente</option>
+        <option value="Aprobada">Aprobadas</option>
+        <option value="Rechazada">Rechazadas</option>
+        <option value="Cerrada">Cerradas</option>
+      </select>
+      <select id="filtroTipo" onchange="filtrarOrdenes()">
+        <option value="">Todos los tipos</option>
+        <option value="Preventivo">Preventivo</option>
+        <option value="Correctivo">Correctivo</option>
+        <option value="Predictivo">Predictivo</option>
+        <option value="Mejora">Mejora</option>
+      </select>
+      <button class="btn btn-ghost" onclick="exportarExcel()" style="padding:6px 14px;font-size:12px">📊 Exportar</button>
+    </div>
+    <div class="spinner" id="spinnerLista"></div>
+    <div id="listaContainer"></div>
+  </div>
+
+  <!-- ════════════ PANEL: APROBACIONES ════════════ -->
+  <div id="panel-aprobaciones" class="panel">
+    <div class="card">
+      <div class="card-head">Órdenes Pendientes de mi Aprobación</div>
+      <div class="card-body">
+        <div class="spinner" id="spinnerApro"></div>
+        <div id="aproContainer"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════ PANEL: DASHBOARD ════════════ -->
+  <div id="panel-dashboard" class="panel">
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-val" id="kpi_total">—</div>
+        <div class="kpi-label">Total órdenes</div>
+        <div class="kpi-sub">Este mes</div>
+      </div>
+      <div class="kpi-card" style="border-top-color:var(--accent2)">
+        <div class="kpi-val" id="kpi_aprobadas" style="color:var(--accent2)">—</div>
+        <div class="kpi-label">Aprobadas</div>
+        <div class="kpi-sub">Tasa de aprobación</div>
+      </div>
+      <div class="kpi-card" style="border-top-color:#d83b01">
+        <div class="kpi-val" id="kpi_pendientes" style="color:#d83b01">—</div>
+        <div class="kpi-label">Pendientes</div>
+        <div class="kpi-sub">En espera de aprobación</div>
+      </div>
+      <div class="kpi-card" style="border-top-color:#7719aa">
+        <div class="kpi-val" id="kpi_costo" style="color:#7719aa">—</div>
+        <div class="kpi-label">Costo total</div>
+        <div class="kpi-sub">Repuestos e insumos</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">Órdenes por Tipo de Mantenimiento</div>
+      <div class="card-body">
+        <canvas id="chartTipo" height="200"></canvas>
+      </div>
+    </div>
+
+    <div style="text-align:center;padding:24px;color:var(--text2);font-size:13px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius)">
+      <strong>Power BI Embedded</strong><br>
+      <span style="font-size:12px;color:var(--text3)">
+        Conecta tu workspace de Power BI aquí para ver dashboards avanzados de KPIs de mantenimiento, MTBF, MTTR y análisis de costos.
+      </span><br>
+      <a href="https://docs.microsoft.com/power-bi/developer/embedded" target="_blank"
+         style="color:var(--accent);font-size:12px;margin-top:8px;display:inline-block">
+        Ver guía de integración Power BI →
+      </a>
+    </div>
+  </div>
+
+  <!-- ════════════ PANEL: DETALLE ════════════ -->
+  <div id="panel-detalle" class="panel">
+    <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+      <button class="btn btn-ghost" onclick="showPanel('lista')">← Volver</button>
+      <button class="btn btn-ghost" onclick="imprimirOrden()">🖨 Imprimir / PDF</button>
+      <button class="btn btn-ghost" onclick="descargarPDF()">📄 Descargar PDF</button>
+    </div>
+    <div id="detalleContainer" class="card"></div>
+
+    <!-- Panel de aprobación en detalle -->
+    <div id="panelAprobacionDetalle" style="display:none" class="card" style="margin-top:14px">
+      <div class="card-head">Acción de Aprobación</div>
+      <div class="card-body">
+        <div class="field" style="margin-bottom:10px">
+          <label>Comentario</label>
+          <textarea id="comentarioApro" placeholder="Comentario (requerido para rechazar)..." style="min-height:70px"></textarea>
+        </div>
+        <div class="grid-2">
+          <div>
+            <label class="field" style="gap:4px;margin-bottom:6px">
+              <span style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.6px">Firma de aprobación</span>
+            </label>
+            <canvas id="sigApro" class="sig-pad" width="300" height="80"></canvas>
+            <button class="sig-clear" onclick="clearSigApro()">Borrar</button>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:10px;justify-content:flex-end">
+            <button class="btn btn-success" onclick="aprobarOrden()">✅ Aprobar orden</button>
+            <button class="btn btn-danger"  onclick="rechazarOrden()">❌ Rechazar orden</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<!-- ════════════════════════════════════════════════════
+     CHART.JS (mini dashboard)
+════════════════════════════════════════════════════ -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<script>
+/* ══════════════════════════════════════════════
+   CONFIGURACIÓN MICROSOFT 365
+   ► Reemplaza estos valores con los de tu tenant
+══════════════════════════════════════════════ */
+const M365_CONFIG = {
+  clientId:       'TU_APP_CLIENT_ID',          // Azure AD App Registration
+  tenantId:       'TU_TENANT_ID',              // Azure AD Tenant ID
+  siteUrl:        'https://TUEMPRESA.sharepoint.com/sites/Mantenimiento',
+  listOrdenes:    'OrdenesDeTrabajo',
+  listTareas:     'TareasOrden',
+  listRepuestos:  'RepuestosOrden',
+  listInsumos:    'InsumosOrden',
+  libPDFs:        'PDFOrdenes',
+  aprobador1:     'supervisor@tuempresa.com',
+  aprobador2:     'gerente.mant@tuempresa.com',
+};
+
+/* ══════════════════════════════════════════════
+   ESTADO GLOBAL
+══════════════════════════════════════════════ */
+let currentUser = { name: 'Demo Usuario', email: 'demo@empresa.com', initials: 'DU' };
+let currentOrderId = null;
+let allOrdenes = [];
+let isTeams = false;
+let sigPad = null, sigAproPad = null;
+let isDrawing = false, drawCtx = null, drawCanvas = null;
+
+/* ══════════════════════════════════════════════
+   INICIALIZACIÓN
+══════════════════════════════════════════════ */
+window.addEventListener('load', async () => {
+  initSignaturePad();
+  initSignaturePad2();
+  initDefaultRows();
+
+  // Detectar si estamos en Teams
+  try {
+    await microsoftTeams.app.initialize();
+    isTeams = true;
+    const ctx = await microsoftTeams.app.getContext();
+    currentUser = {
+      name:     ctx.user.displayName || 'Usuario',
+      email:    ctx.user.userPrincipalName || '',
+      initials: (ctx.user.displayName||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()
+    };
+  } catch(e) {
+    // Fuera de Teams: modo demo
+    console.log('Ejecutando fuera de Teams — modo demo');
+  }
+
+  document.getElementById('userName').textContent    = currentUser.name;
+  document.getElementById('userInitials').textContent = currentUser.initials;
+
+  // Prellenar "solicitada por"
+  document.getElementById('f_solicitadaPor').value = currentUser.name;
+});
+
+/* ══════════════════════════════════════════════
+   NAVEGACIÓN
+══════════════════════════════════════════════ */
+function showPanel(name) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  const tabs = { nueva:0, lista:1, aprobaciones:2, dashboard:3 };
+  const t = document.querySelectorAll('.nav-tab')[tabs[name]];
+  if (t) t.classList.add('active');
+
+  if (name === 'lista')        cargarOrdenes();
+  if (name === 'aprobaciones') cargarAprobaciones();
+  if (name === 'dashboard')    cargarDashboard();
+}
+
+/* ══════════════════════════════════════════════
+   FILAS DINÁMICAS
+══════════════════════════════════════════════ */
+function addRow(tbodyId, tipo) {
+  const tbody = document.getElementById(tbodyId);
+  const tr = document.createElement('tr');
+  if (tipo === 'tarea') {
+    tr.innerHTML = `
+      <td><input type="text" placeholder="Descripción de la tarea"></td>
+      <td><input type="text" placeholder="2h"></td>
+      <td><input type="text" placeholder=""></td>
+      <td style="text-align:center"><input type="checkbox" style="width:auto;transform:scale(1.3)"></td>
+      <td><input type="text" placeholder="Técnico"></td>
+      <td><button class="btn-del-row" onclick="this.closest('tr').remove()">✕</button></td>`;
+  } else {
+    tr.innerHTML = `
+      <td><input type="text" placeholder="COD-001"></td>
+      <td><input type="text" placeholder="Nombre"></td>
+      <td><input type="number" placeholder="0" min="0" step="any"></td>
+      <td>
+        <select>
+          <option value="und">und</option><option value="m">m</option>
+          <option value="Lt">Lt</option><option value="kg">kg</option>
+          <option value="gl">gl</option><option value="Ft">Ft</option>
+        </select>
+      </td>
+      <td><input type="number" placeholder="0.00" min="0" step="0.01"></td>
+      <td><button class="btn-del-row" onclick="this.closest('tr').remove()">✕</button></td>`;
+  }
+  tbody.appendChild(tr);
+}
+
+function initDefaultRows() {
+  ['tarea','tarea','tarea'].forEach(() => addRow('tbody_tareas','tarea'));
+  ['repuesto','repuesto'].forEach(() => addRow('tbody_repuestos','repuesto'));
+  ['insumo','insumo'].forEach(() => addRow('tbody_insumos','insumo'));
+}
+
+function readTable(tbodyId, tipo) {
+  const rows = document.getElementById(tbodyId).querySelectorAll('tr');
+  return Array.from(rows).map(tr => {
+    const inputs = tr.querySelectorAll('input, select');
+    if (tipo === 'tarea') {
+      return { descripcion: inputs[0]?.value||'', tiempoEstimado: inputs[1]?.value||'',
+               tiempoReal: inputs[2]?.value||'', ok: inputs[3]?.checked||false,
+               responsable: inputs[4]?.value||'' };
+    } else {
+      return { codigo: inputs[0]?.value||'', nombre: inputs[1]?.value||'',
+               cantidad: inputs[2]?.value||'', unidades: inputs[3]?.value||'und',
+               costoUnitario: inputs[4]?.value||'0' };
+    }
+  });
+}
+
+/* ══════════════════════════════════════════════
+   FIRMA DIGITAL — Canvas signature pad
+══════════════════════════════════════════════ */
+function initSignaturePad() {
+  drawCanvas = document.getElementById('sigCanvas');
+  drawCtx = drawCanvas.getContext('2d');
+  drawCtx.strokeStyle = '#1a3a6b';
+  drawCtx.lineWidth   = 2;
+  drawCtx.lineCap     = 'round';
+  drawCtx.lineJoin    = 'round';
+  setupCanvasEvents(drawCanvas, drawCtx);
+}
+
+function initSignaturePad2() {
+  const canvas = document.getElementById('sigApro');
+  const ctx2   = canvas.getContext('2d');
+  ctx2.strokeStyle = '#107C10';
+  ctx2.lineWidth   = 2;
+  ctx2.lineCap     = 'round';
+  ctx2.lineJoin    = 'round';
+  setupCanvasEvents(canvas, ctx2);
+}
+
+function setupCanvasEvents(canvas, ctx) {
+  let drawing = false, lastX = 0, lastY = 0;
+  const getPos = e => {
+    const r = canvas.getBoundingClientRect();
+    const src = e.touches ? e.touches[0] : e;
+    return [(src.clientX - r.left) * (canvas.width / r.width),
+            (src.clientY - r.top)  * (canvas.height / r.height)];
+  };
+  const start = e => { e.preventDefault(); drawing = true; [lastX,lastY] = getPos(e); };
+  const draw  = e => {
+    if (!drawing) return;
+    e.preventDefault();
+    const [x,y] = getPos(e);
+    ctx.beginPath(); ctx.moveTo(lastX,lastY); ctx.lineTo(x,y); ctx.stroke();
+    [lastX,lastY] = [x,y];
+    // Show preview for main sig
+    if (canvas.id === 'sigCanvas') {
+      document.getElementById('sigPreview').style.display = 'block';
+      document.getElementById('sigImg').src = canvas.toDataURL();
+    }
+  };
+  const stop = () => drawing = false;
+  canvas.addEventListener('mousedown', start);
+  canvas.addEventListener('mousemove', draw);
+  canvas.addEventListener('mouseup',   stop);
+  canvas.addEventListener('mouseleave',stop);
+  canvas.addEventListener('touchstart', start, { passive:false });
+  canvas.addEventListener('touchmove',  draw,  { passive:false });
+  canvas.addEventListener('touchend',   stop);
+}
+
+function clearSig() {
+  drawCtx.clearRect(0,0,drawCanvas.width,drawCanvas.height);
+  document.getElementById('sigPreview').style.display = 'none';
+}
+
+function clearSigApro() {
+  const c = document.getElementById('sigApro');
+  c.getContext('2d').clearRect(0,0,c.width,c.height);
+}
+
+function sigDataUrl(canvasId) {
+  const c = document.getElementById(canvasId);
+  const blank = document.createElement('canvas');
+  blank.width = c.width; blank.height = c.height;
+  return JSON.stringify(c.toDataURL()) === JSON.stringify(blank.toDataURL()) ? null : c.toDataURL();
+}
+
+/* ══════════════════════════════════════════════
+   SHAREPOINT — GRAPH API (wrapper)
+   En producción reemplazar con llamadas reales
+   a Microsoft Graph usando MSAL.
+══════════════════════════════════════════════ */
+async function graphRequest(method, endpoint, body) {
+  // En producción:
+  // const token = await getAccessToken();
+  // return fetch(`https://graph.microsoft.com/v1.0/${endpoint}`, {
+  //   method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+  //   body: body ? JSON.stringify(body) : undefined
+  // }).then(r => r.json());
+
+  // MODO DEMO — simular respuesta
+  return new Promise(resolve => {
+    setTimeout(() => {
+      if (method === 'GET' && endpoint.includes('OrdenesDeTrabajo')) {
+        resolve({ value: DEMO_DATA });
+      } else {
+        resolve({ id: 'demo-' + Date.now(), NumeroOrden: generarNumeroDemo() });
+      }
+    }, 600);
+  });
+}
+
+/* ══════════════════════════════════════════════
+   DATOS DEMO
+══════════════════════════════════════════════ */
+let DEMO_COUNTER = 4;
+function generarNumeroDemo() {
+  return 'OT-' + String(DEMO_COUNTER++).padStart(5,'0');
+}
+
+let DEMO_DATA = [
+  { id:'1', NumeroOrden:'OT-00001', Title:'Mantenimiento preventivo compresor', Equipo:'COMP-01',
+    TipoMantenimiento:'Preventivo', Prioridad:'Alta', Estado:'Aprobada',
+    SolicitadaPor:'Carlos Ruiz', FechaInicio:'2026-05-01', FechaFin:'2026-05-03',
+    Responsable:'Pedro López', CostoTotal:450000 },
+  { id:'2', NumeroOrden:'OT-00002', Title:'Cambio rodamientos bomba centrífuga', Equipo:'BOMB-03',
+    TipoMantenimiento:'Correctivo', Prioridad:'Urgente', Estado:'Pendiente aprobación',
+    SolicitadaPor:'Ana Gómez', FechaInicio:'2026-05-10', FechaFin:'2026-05-11',
+    Responsable:'Luis Torres', CostoTotal:820000 },
+  { id:'3', NumeroOrden:'OT-00003', Title:'Inspección tablero eléctrico principal', Equipo:'TABL-A',
+    TipoMantenimiento:'Predictivo', Prioridad:'Normal', Estado:'Borrador',
+    SolicitadaPor:'María Castro', FechaInicio:'2026-05-20', FechaFin:'2026-05-20',
+    Responsable:'Juan Díaz', CostoTotal:120000 },
+];
+
+/* ══════════════════════════════════════════════
+   GUARDAR ORDEN
+══════════════════════════════════════════════ */
+async function guardarOrden() {
+  const btn   = document.getElementById('btnGuardar');
+  const alert = document.getElementById('alertGuardar');
+  alert.className = 'alert'; alert.textContent = '';
+
+  const datos = {
+    Title:              document.getElementById('f_descripcion').value,
+    Equipo:             document.getElementById('f_equipo').value,
+    TipoMantenimiento:  document.getElementById('f_tipo').value,
+    Prioridad:          document.getElementById('f_prioridad').value,
+    SolicitadaPor:      document.getElementById('f_solicitadaPor').value,
+    AutorizadaPor:      document.getElementById('f_autorizadaPor').value,
+    Responsable:        document.getElementById('f_responsable').value,
+    FechaInicio:        document.getElementById('f_fechaInicio').value,
+    Supervisor:         document.getElementById('f_supervisor').value,
+    FechaFin:           document.getElementById('f_fechaFin').value,
+    MedidasSeguridad:   document.getElementById('f_seguridad').value,
+    Observaciones:      document.getElementById('f_observaciones').value,
+    Estado:             'Pendiente aprobación',
+    FirmaCreador:       sigDataUrl('sigCanvas') || '',
+    UserEmail:          currentUser.email,
+    tareas:             readTable('tbody_tareas','tarea').filter(t=>t.descripcion),
+    repuestos:          readTable('tbody_repuestos','repuesto').filter(r=>r.nombre),
+    insumos:            readTable('tbody_insumos','insumo').filter(i=>i.nombre),
+  };
+
+  if (!datos.Title || !datos.Equipo) {
+    alert.className = 'alert alert-err show';
+    alert.textContent = '⚠ Descripción y Equipo son obligatorios.';
+    return;
+  }
+
+  btn.disabled = true; btn.textContent = '⏳ Guardando en SharePoint...';
+
+  try {
+    // En producción: llamada a SharePoint via Graph
+    const res = await graphRequest('POST', `sites/${M365_CONFIG.siteId}/lists/${M365_CONFIG.listOrdenes}/items`, {
+      fields: datos
+    });
+
+    const numOrden = generarNumeroDemo();
+
+    // Agregar a demo data
+    DEMO_DATA.push({ id: res.id || Date.now().toString(), NumeroOrden: numOrden,
+      Title: datos.Title, Equipo: datos.Equipo, TipoMantenimiento: datos.TipoMantenimiento,
+      Prioridad: datos.Prioridad, Estado: 'Pendiente aprobación',
+      SolicitadaPor: datos.SolicitadaPor, FechaInicio: datos.FechaInicio,
+      FechaFin: datos.FechaFin, Responsable: datos.Responsable, CostoTotal: 0 });
+
+    alert.className = 'alert alert-ok show';
+    alert.innerHTML = `✅ Orden <strong>${numOrden}</strong> guardada. Se envió notificación al supervisor para aprobación.`;
+
+    // En producción: disparar Power Automate flow para notificación
+    // await triggerApprovalFlow(numOrden, datos);
+
+  } catch(e) {
+    alert.className = 'alert alert-err show';
+    alert.textContent = 'Error al guardar: ' + e.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '💾 Guardar y enviar para aprobación';
+  }
+}
+
+/* ══════════════════════════════════════════════
+   CARGAR LISTA DE ÓRDENES
+══════════════════════════════════════════════ */
+async function cargarOrdenes() {
+  document.getElementById('spinnerLista').classList.add('show');
+  document.getElementById('listaContainer').innerHTML = '';
+  try {
+    const res = await graphRequest('GET', `sites/${M365_CONFIG.siteId}/lists/${M365_CONFIG.listOrdenes}/items?expand=fields`);
+    allOrdenes = (res.value || DEMO_DATA).map(i => i.fields || i);
+    filtrarOrdenes();
+  } catch(e) {
+    allOrdenes = DEMO_DATA;
+    filtrarOrdenes();
+  } finally {
+    document.getElementById('spinnerLista').classList.remove('show');
+  }
+}
+
+function filtrarOrdenes() {
+  const txt    = document.getElementById('filtroTexto')?.value.toLowerCase() || '';
+  const estado = document.getElementById('filtroEstado')?.value || '';
+  const tipo   = document.getElementById('filtroTipo')?.value || '';
+
+  const filtered = allOrdenes.filter(o => {
+    const matchTxt  = !txt    || (o.Title||'').toLowerCase().includes(txt)
+                               || (o.NumeroOrden||'').toLowerCase().includes(txt)
+                               || (o.Equipo||'').toLowerCase().includes(txt);
+    const matchEst  = !estado || o.Estado === estado;
+    const matchTipo = !tipo   || o.TipoMantenimiento === tipo;
+    return matchTxt && matchEst && matchTipo;
+  });
+
+  const div = document.getElementById('listaContainer');
+  if (!filtered.length) {
+    div.innerHTML = `<div class="empty-state">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+      </svg>
+      No hay órdenes que coincidan con los filtros.
+    </div>`;
+    return;
+  }
+
+  div.innerHTML = filtered.slice().reverse().map(o => `
+    <div class="order-item" onclick="verDetalle('${o.id||o.NumeroOrden}')">
+      <div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+          <span class="order-num">${esc(o.NumeroOrden||'—')}</span>
+          <span class="badge ${badgeClass(o.Estado)}">${esc(o.Estado||'Borrador')}</span>
+          ${o.Prioridad==='Urgente' ? '<span class="badge" style="background:#fde8e8;color:#a80000">🔴 Urgente</span>' : ''}
+        </div>
+        <div class="order-desc">${esc(o.Title||'Sin descripción')}</div>
+        <div class="order-meta">
+          <strong>${esc(o.Equipo||'—')}</strong> · ${esc(o.TipoMantenimiento||'—')} ·
+          Responsable: ${esc(o.Responsable||'—')} · Inicio: ${fmtFecha(o.FechaInicio)}
+        </div>
+      </div>
+      <div style="text-align:right;font-size:12px;color:var(--text3)">
+        ${o.CostoTotal ? '$' + Number(o.CostoTotal).toLocaleString('es-CO') : ''}
+      </div>
+    </div>`).join('');
+}
+
+function badgeClass(estado) {
+  if (!estado) return 'badge-draft';
+  if (estado.includes('Pendiente')) return 'badge-pending';
+  if (estado === 'Aprobada')        return 'badge-approved';
+  if (estado === 'Rechazada')       return 'badge-rejected';
+  if (estado === 'Cerrada')         return 'badge-closed';
+  return 'badge-draft';
+}
+
+/* ══════════════════════════════════════════════
+   VER DETALLE
+══════════════════════════════════════════════ */
+async function verDetalle(id) {
+  showPanel('detalle');
+  const orden = allOrdenes.find(o => (o.id||o.NumeroOrden) === id) ||
+                DEMO_DATA.find(o => (o.id||o.NumeroOrden) === id) || {};
+
+  const canApprove = orden.Estado === 'Pendiente aprobación';
+  document.getElementById('panelAprobacionDetalle').style.display = canApprove ? 'block' : 'none';
+
+  document.getElementById('detalleContainer').innerHTML = `
+    <div class="detail-header">
+      <div>
+        <div style="font-size:11px;opacity:.6;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:3px">Orden de Trabajo</div>
+        <div style="font-size:15px;font-weight:600">${esc(orden.Title||'—')}</div>
+      </div>
+      <div class="detail-num">${esc(orden.NumeroOrden||'—')}</div>
+    </div>
+
+    <!-- Timeline de estado -->
+    <div style="padding:14px 18px;border-bottom:1px solid var(--border)">
+      ${renderTimeline(orden.Estado)}
+    </div>
+
+    <div class="detail-section">
+      <div class="detail-section-title">Identificación</div>
+      <div class="detail-grid">
+        ${campo('Equipo', orden.Equipo)}
+        ${campo('Tipo', orden.TipoMantenimiento)}
+        ${campo('Prioridad', orden.Prioridad)}
+        ${campo('Estado', orden.Estado)}
+        ${campo('Solicitada por', orden.SolicitadaPor)}
+        ${campo('Autorizada por', orden.AutorizadaPor||'—')}
+      </div>
+    </div>
+
+    <div class="detail-section">
+      <div class="detail-section-title">Responsables y Fechas</div>
+      <div class="detail-grid">
+        ${campo('Responsable', orden.Responsable)}
+        ${campo('Fecha inicio', fmtFecha(orden.FechaInicio))}
+        ${campo('Supervisor', orden.Supervisor||'—')}
+        ${campo('Fecha fin', fmtFecha(orden.FechaFin))}
+      </div>
+    </div>
+
+    <div class="detail-section">
+      <div class="detail-section-title">Seguridad y Observaciones</div>
+      <div class="detail-grid">
+        <div class="detail-field-full"><div class="detail-field-label">Medidas de seguridad</div>
+          <div class="detail-field-val" style="white-space:pre-wrap">${esc(orden.MedidasSeguridad||'—')}</div></div>
+        <div class="detail-field-full"><div class="detail-field-label">Observaciones</div>
+          <div class="detail-field-val" style="white-space:pre-wrap">${esc(orden.Observaciones||'—')}</div></div>
+      </div>
+    </div>
+
+    ${orden.FirmaCreador ? `
+    <div class="detail-section">
+      <div class="detail-section-title">Firma del solicitante</div>
+      <div style="padding:12px 18px">
+        <div class="sig-img-wrap" style="max-width:260px"><img src="${orden.FirmaCreador}" alt="Firma solicitante"></div>
+      </div>
+    </div>` : ''}
+
+    <div style="background:var(--brand);color:rgba(255,255,255,.4);font-size:10px;text-align:center;padding:8px;font-family:monospace;letter-spacing:.5px">
+      ${esc(orden.NumeroOrden||'—')} · Generado: ${new Date().toLocaleString('es-CO')}
+    </div>`;
+
+  currentOrderId = id;
+}
+
+function renderTimeline(estado) {
+  const steps = [
+    { label: 'Creada', key: 'creada' },
+    { label: 'Pendiente', key: 'pendiente' },
+    { label: 'Aprobada', key: 'aprobada' },
+    { label: 'En ejecución', key: 'ejecucion' },
+    { label: 'Cerrada', key: 'cerrada' },
+  ];
+  const idx = {
+    'Borrador': 0, 'Pendiente aprobación': 1,
+    'Aprobada': 2, 'En ejecución': 3, 'Cerrada': 4, 'Rechazada': -1
+  }[estado] ?? 0;
+
+  let html = '<div class="timeline">';
+  steps.forEach((s, i) => {
+    const isDone   = i < idx;
+    const isActive = i === idx;
+    const isRej    = estado === 'Rechazada' && i === 1;
+    html += `
+      <div class="tl-step ${isDone?'done':''} ${isActive?'active':''} ${isRej?'reject':''}">
+        <div class="tl-dot">${isDone ? '✓' : (isRej ? '✕' : (i+1))}</div>
+        <div>${s.label}</div>
+      </div>`;
+    if (i < steps.length - 1) {
+      html += `<div class="tl-line ${isDone?'done':''}"></div>`;
+    }
+  });
+  return html + '</div>';
+}
+
+function campo(label, val) {
+  return `<div class="detail-field">
+    <div class="detail-field-label">${esc(label)}</div>
+    <div class="detail-field-val">${esc(val||'—')}</div>
+  </div>`;
+}
+
+/* ══════════════════════════════════════════════
+   APROBACIONES
+══════════════════════════════════════════════ */
+async function cargarAprobaciones() {
+  document.getElementById('spinnerApro').classList.add('show');
+  const pendientes = DEMO_DATA.filter(o => o.Estado === 'Pendiente aprobación');
+  await new Promise(r => setTimeout(r, 500));
+  document.getElementById('spinnerApro').classList.remove('show');
+
+  const div = document.getElementById('aproContainer');
+  if (!pendientes.length) {
+    div.innerHTML = '<div style="text-align:center;color:var(--text3);padding:32px">✅ No hay órdenes pendientes de aprobación</div>';
+    return;
+  }
+  div.innerHTML = pendientes.map(o => `
+    <div class="approval-box" style="margin-bottom:12px">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
+        <div>
+          <h4>${esc(o.NumeroOrden)} — ${esc(o.Title)}</h4>
+          <div style="font-size:12px;color:var(--text2);margin:4px 0">
+            Equipo: <strong>${esc(o.Equipo)}</strong> · Responsable: ${esc(o.Responsable||'—')} ·
+            Inicio: ${fmtFecha(o.FechaInicio)}
+          </div>
+          ${o.Prioridad==='Urgente' ? '<span class="badge badge-rejected">🔴 Urgente</span>' : ''}
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-success" style="font-size:12px;padding:6px 14px"
+            onclick="aprobarRapido('${o.id||o.NumeroOrden}')">✅ Aprobar</button>
+          <button class="btn btn-danger" style="font-size:12px;padding:6px 14px"
+            onclick="verDetalle('${o.id||o.NumeroOrden}');showPanel('detalle')">Ver detalle</button>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+async function aprobarRapido(id) {
+  const o = DEMO_DATA.find(x => (x.id||x.NumeroOrden) === id);
+  if (o) { o.Estado = 'Aprobada'; }
+  const div = document.querySelector(`[onclick*="${id}"]`)?.closest('.approval-box');
+  if (div) { div.style.background = '#dff6dd'; div.style.borderColor = '#92d89e'; }
+  await new Promise(r => setTimeout(r, 300));
+  cargarAprobaciones();
+}
+
+function aprobarOrden()  { cambiarEstado('Aprobada');  }
+function rechazarOrden() { cambiarEstado('Rechazada'); }
+function cambiarEstado(nuevoEstado) {
+  if (!currentOrderId) return;
+  const comentario = document.getElementById('comentarioApro')?.value || '';
+  if (nuevoEstado === 'Rechazada' && !comentario) {
+    alert('El comentario es obligatorio para rechazar una orden.');
+    return;
+  }
+  const o = DEMO_DATA.find(x => (x.id||x.NumeroOrden) === currentOrderId);
+  if (o) o.Estado = nuevoEstado;
+  verDetalle(currentOrderId);
+  document.getElementById('panelAprobacionDetalle').style.display = 'none';
+}
+
+/* ══════════════════════════════════════════════
+   DASHBOARD
+══════════════════════════════════════════════ */
+async function cargarDashboard() {
+  await new Promise(r => setTimeout(r, 400));
+  const total     = DEMO_DATA.length;
+  const aprobadas = DEMO_DATA.filter(o => o.Estado === 'Aprobada').length;
+  const pend      = DEMO_DATA.filter(o => o.Estado === 'Pendiente aprobación').length;
+  const costo     = DEMO_DATA.reduce((s,o) => s + (Number(o.CostoTotal)||0), 0);
+
+  document.getElementById('kpi_total').textContent     = total;
+  document.getElementById('kpi_aprobadas').textContent = aprobadas;
+  document.getElementById('kpi_pendientes').textContent= pend;
+  document.getElementById('kpi_costo').textContent     = '$' + (costo/1000).toFixed(0) + 'k';
+
+  // Chart
+  const tipoCount = {};
+  DEMO_DATA.forEach(o => { tipoCount[o.TipoMantenimiento||'Otro'] = (tipoCount[o.TipoMantenimiento||'Otro']||0) + 1; });
+  const ctx = document.getElementById('chartTipo').getContext('2d');
+  if (window._chartTipo) window._chartTipo.destroy();
+  window._chartTipo = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: Object.keys(tipoCount),
+      datasets: [{ label: 'Órdenes', data: Object.values(tipoCount),
+        backgroundColor: ['#1a3a6b','#0078d4','#107C10','#797775'],
+        borderRadius: 6 }]
+    },
+    options: {
+      responsive: true, plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+    }
+  });
+}
+
+/* ══════════════════════════════════════════════
+   PDF / IMPRESIÓN
+══════════════════════════════════════════════ */
+function imprimirOrden() { window.print(); }
+function descargarPDF()  {
+  // En producción: usar Power Automate con plantilla Word → convertir a PDF → guardar en SharePoint
+  alert('En producción: Power Automate genera el PDF automáticamente desde la plantilla Word ' +
+        'y lo guarda en la biblioteca de SharePoint con la firma digital incluida.\n\n' +
+        'Ver archivo power-automate/flow-pdf-generation.json para la configuración.');
+}
+
+function exportarExcel() {
+  alert('En producción: exporta a Excel Online o descarga CSV via Microsoft Graph.\n' +
+        'Ver documentación adjunta para la implementación.');
+}
+
+/* ══════════════════════════════════════════════
+   HELPERS
+══════════════════════════════════════════════ */
+function esc(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function fmtFecha(f) {
+  if (!f || f==='null' || f==='') return '—';
+  try { return new Date(f).toLocaleDateString('es-CO',{year:'numeric',month:'2-digit',day:'2-digit'}); }
+  catch(e) { return f; }
+}
+</script>
+</body>
+</html>
